@@ -46,11 +46,11 @@ usage() if not @ARGV or $ARGV[0] eq '-h';
 _die "HOSTNAME not set" if not $rc{HOSTNAME};
 
 my ( $cmd, $host, $repo ) = @ARGV;
-$repo =~ s/\.git$//;
+$repo =~ s/\.git$// if length $repo;
 usage() if not $repo;
 
 if ( $cmd eq 'push' ) {
-    valid_slave( $host, $repo ) if exists $ENV{GL_USER};
+    my $dest_repo = valid_slave( $host, $repo, exists $ENV{GL_USER} );
     # will die if host not in slaves for repo
 
     trace( 1, "TID=$tid host=$host repo=$repo", "gitolite mirror push started" );
@@ -65,7 +65,7 @@ if ( $cmd eq 'push' ) {
 
     my $errors = 0;
     my $glss = '';
-    for (`git push --mirror $host:$repo 2>&1`) {
+    for (`git push --mirror $host:$dest_repo 2>&1`) {
         $errors = 1 if $?;
         print STDERR "$_" if -t STDERR or exists $ENV{GL_USER};
         $glss .= $_;
@@ -90,7 +90,7 @@ if ( $cmd eq 'push' ) {
 
     exit $errors;
 } elsif ($cmd eq 'status') {
-    valid_slave( $host, $repo ) if exists $ENV{GL_USER};
+    valid_slave( $host, $repo, exists $ENV{GL_USER} );
     # will die if host not in slaves for repo
 
     _chdir( $rc{GL_REPO_BASE} );
@@ -110,18 +110,23 @@ if ( $cmd eq 'push' ) {
 # ----------------------------------------------------------------------
 
 sub valid_slave {
-    my ( $host, $repo ) = @_;
+    my ( $host, $repo, $check ) = @_;
     _die "invalid repo '$repo'" unless $repo =~ $REPONAME_PATT;
 
     my %list = repo_slaves($repo);
-    _die "'$host' not a valid slave for '$repo'" unless $list{$host};
+    _die "'$host' not a valid slave for '$repo'" if $check and not $list{$host};
+
+    return exists $list{$host} ? $list{$host} : $repo;
 }
 
 sub repo_slaves {
     my $repo = shift;
 
     my $ref = git_config( $repo, "^gitolite-options\\.mirror\\.slaves.*" );
-    my %list = map { $_ => 1 } map { split } values %$ref;
+    my %list = map { 
+        /^([^:]*)(?::?(.*?))$/; 
+        length $1 ? ($1 => ( length $2 ? $2 : $repo )) : ()
+    } map { split } values %$ref;
 
     return %list;
 }

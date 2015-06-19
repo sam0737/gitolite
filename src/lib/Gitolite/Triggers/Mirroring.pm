@@ -195,13 +195,13 @@ sub post_git {
         my $repo = shift;
 
         my $ref = git_config( $repo, "^gitolite-options\\.mirror\\.slaves.*" );
-        my %out = map { $_ => 'async' } map { split } values %$ref;
+        my %out = map { $_ => 'async' } grep { length } map { /^([^:]*):?/; $1 } map { split } values %$ref;
 
         $ref = git_config( $repo, "^gitolite-options\\.mirror\\.slaves\\.sync.*" );
-        map { $out{$_} = 'sync' } map { split } values %$ref;
+        map { $out{$_} = 'sync' } grep { length } map { /^([^:]*):?/; $1 } map { split } values %$ref;
 
         $ref = git_config( $repo, "^gitolite-options\\.mirror\\.slaves\\.nosync.*" );
-        map { $out{$_} = 'nosync' } map { split } values %$ref;
+        map { $out{$_} = 'nosync' } grep { length } map { /^([^:]*):?/; $1 } map { split } values %$ref;
 
         return %out;
     }
